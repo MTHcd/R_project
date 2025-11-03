@@ -2,27 +2,61 @@
 title: "R_project: Programmation et traitement statistique des données"
 output: html_document
 ---
-# Question 1: Estimateurs Non Paramétriques
+# Question 1: Estimateurs Non Paramétriques avec récursivité de la dérivée d'une fonction de régression non paramétrique
 
 ```{r}
-
-# sequence of bandwidth
 N <- 1000 # sample size
 alpha <- 10 # parameter for h_n
-h_n <- function(x) {
+seq_h <- sapply(seq(1, N, 1), e_n) # bandwidth
+e_n <- function(x) {
   return((1/x^alpha))
 }
+Y <- rnorm(N, 0, 1) # proxy data
+X <- seq(1, 1000, 1) # time data
 
-seq_h <- sapply(seq(1, N, 1), h_n)
+# estimator n°1 toolbox
 
-g <- function(x){
-  return(print("waiting for g"))
+h_N <- function(x) {
+  return((1/N)*(sum((Y/h)*K_gaussian((x-X)/h))))
 }
 
-g_hat <- function(x) {
-  return(print("estimation of g"))
+g_N <- function(x) {
+  return((1/N)*(sum((1/h)*K_gaussian((x-X)/h))))
 }
 
+h_N_prime <- function(x) {
+  return()
+}
+
+g_N_prime <- function(x) {
+  return()
+}
+
+es_n1 <- function(x) {
+  return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+}
+
+# estimator n°2
+
+g <- function(x) {
+  return(print("case g is known"))
+}
+
+g_prime <- function(x){
+  return(print"case g is known")
+}
+
+es_n2 <- function(x) {
+  return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+}
+
+# estimator n°3
+
+es_n3 <- function(x) {
+  return((1/N)*(sum(Y/g(x)*h_N^2)*K_prime((x-X_N)/h_N)))
+}
+
+# kernels
 K_gaussian <- function(x) {
   return(pnorm(x))
 }
@@ -35,20 +69,6 @@ K_quadra <- function(x) {
   return(ifelse(abs(x) <= 1,
                 (15/16)*(1-x^2)^2), 0)
 }
-
-h <- function(x)
-
-fn1 <- function(x) {
-  return()
-}  # h(x;Y,h,K), g_hat
-
-fn2 <- function(x) {
-  return()
-} # h(x;Y,h,K), g
-
-fn3 <- function(x) {
-  
-} # g, bandwidth, X, Y, N, K
 ```
 
 # Question 2: Simulations
