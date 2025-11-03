@@ -14,22 +14,40 @@ e_n <- function(x) {
 Y <- rnorm(N, 0, 1) # proxy data
 X <- seq(1, 1000, 1) # time data
 
+# K values
+# gaussian -> pnorm(x)
+# quadratic -> ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2), 0)
+# epanechnikov -> ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)
+
+# K prime values
+# gaussian -> -(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2)
+# quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
+# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0)
+
+K <- function(x) {
+  return() 
+}
+
+K_prime <- function(x) {
+  return()
+}
+
 # estimator n°1 toolbox
 
 h_N <- function(x) {
-  return((1/N)*(sum((Y/h)*K_gaussian((x-X)/h))))
+  return((1/N)*(sum((Y/h)*K((x-X)/h))))
 }
 
 g_N <- function(x) {
-  return((1/N)*(sum((1/h)*K_gaussian((x-X)/h))))
+  return((1/N)*(sum((1/h)*K((x-X)/h))))
 }
 
 h_N_prime <- function(x) {
-  return()
+  return((1/N)*(sum((Y/h^2)*K_prime((x-X)/h))))
 }
 
 g_N_prime <- function(x) {
-  return()
+  return((1/N)*(sum((1/h^2)*K_prime((x-X)/h))))
 }
 
 es_n1 <- function(x) {
@@ -56,19 +74,6 @@ es_n3 <- function(x) {
   return((1/N)*(sum(Y/g(x)*h_N^2)*K_prime((x-X_N)/h_N)))
 }
 
-# kernels
-K_gaussian <- function(x) {
-  return(pnorm(x))
-}
-
-K_epach <- function(x) {
-  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0))
-}
-
-K_quadra <- function(x) {
-  return(ifelse(abs(x) <= 1,
-                (15/16)*(1-x^2)^2), 0)
-}
 ```
 
 # Question 2: Simulations
