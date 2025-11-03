@@ -100,7 +100,7 @@ h <- sapply(seq(1, N, 1), e_N) # bandwidth
 # K prime values
 # gaussian -> -(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2)
 # quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
-# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0)
+# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x), 0)
 
 
 N <- 10000
@@ -119,7 +119,7 @@ K <- function(x) {
   return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
 }
 K_prime <- function(x) {
-  return(ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0))
+  return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
 }
 
 # estimator n°1
@@ -179,20 +179,20 @@ es_n3 <- function(x) {
 
 ```{r}
 library(ggplot2)
-x <- seq(0, 1, length.out = 10000)
+x <- seq(0, 1, length.out = 1000)
 df <- data.frame(
   x = rep(x, 4),
   y = c(f_prime(x), es_n1(x), es_n2(x), es_n3(x)),
   curve = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
 )
 ggplot(df, aes(x = x, y = y, color = curve, linetype = curve)) +
-  geom_line(size = 1.2) +
+  geom_line(size = 0.5) +
   geom_point(
     data = subset(df, curve != "Target"),
-    size = 1.5,
+    size = 0.5,
     alpha = 0.7
   ) +
-  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dashed", "Estimator 2" = "dotted", "Estimator 3" = "dotdash")) +
+  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dotted", "Estimator 2" = "dotted", "Estimator 3" = "dotted")) +
   labs(
     title = "Customized Curves on [0, 1]",
     x = "x",
@@ -200,7 +200,7 @@ ggplot(df, aes(x = x, y = y, color = curve, linetype = curve)) +
     color = "Function",
     linetype = "Function"
   ) +
-  theme_minimal(base_size = 14)
+  theme_minimal()
 
 ```
 
