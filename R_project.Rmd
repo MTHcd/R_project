@@ -79,12 +79,17 @@ es_n3 <- function(x) {
 # Question 2: Simulations
 
 ```{r}
+
+## Dans les graphiques -> que prennent-ils comme noyaux ?
+## Dans les graphiques -> que fixent-ils comme bandwidth ?
+## Dans les graphiques -> quelle valeur fixent-ils pour g ?
+
 f <- function(x) {
   return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
 }
 
 f_prime <- function(x) {
-  return(sin(4*pi*x^2)+8*pi*x(x+2) + 8*pi*cos(8*pi*x))
+  return(sin(4*pi*x^2)+8*pi*x(x+2)cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
 }
 
 eps <- rnorm(N, 0, 1)
