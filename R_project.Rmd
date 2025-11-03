@@ -86,7 +86,7 @@ f_prime <- function(x) {
 # Epanechikov Kernel
 
 
-alpha <- 0.3 # selected by cross validation (to check)
+alpha <- 0.3
 e_N <- function(x) {
   return((1/x^alpha))
 }
@@ -207,6 +207,86 @@ ggplot(df, aes(x = x, y = y, color = curve, linetype = curve)) +
 ## Figure 2 (CLT)
 
 ```{r}
+N <- 10000
+B <- 200
+x0 <- 0.5
+x1 <- 0.8
+par(mfrow=c(3,2))
+alpha <- 0.3
+set.seed(123)
+ES1_X0 <- rep(NA, B)
+ES2_X0 <- rep(NA, B)
+ES3_X0 <- rep(NA, B)
+ES1_X1 <- rep(NA, B)
+ES2_X1 <- rep(NA, B)
+ES3_X1 <- rep(NA, B)
+for (b in 1:200) {
+  e_N <- function(x) {
+  return((1/x^alpha))
+  }
+  h <- sapply(seq(1, N, 1), e_N)
+  eps_N <- rnorm(N, 0, 1)
+  X_N <- runif(N, 0, 1)
+  Y_N <- f(X_N) + eps_N
+  h_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  h_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  es_n1 <- function(x) {
+    return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+    }
+  es_n2 <- function(x) {
+    return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+    }
+  es_n3 <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  ES1_X0[b] <- sqrt(N*(1/N^alpha)^3)*
+(es_n1(x0) - f_prime(x0))
+  ES2_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x0) - f_prime(x0))
+  ES3_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x0) - f_prime(x0))
+  ES1_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n1(x1) - f_prime(x1))
+  ES2_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x1) - f_prime(x1))
+  ES3_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x1) - f_prime(x1))
+}
+
+mean0 <- mean(X0); sd0 <- sd(X0)
+mean1 <- mean(X1); sd1 <- sd(X1)
+x_range <- range(c(X0, X1))
+x_vals <- seq(x_range[1], x_range[2], length.out = 200)
+hist(X0, freq = FALSE, col = "blue",
+     xlab = "Value", ylim = c(0, max(density(X0)$y, density(X1)$y)*1.2))
+lines(x_vals, dnorm(x_vals, mean0, sd0), col = "red", lwd = 2)
+hist(X1, freq = FALSE, col = "blue")
+lines(x_vals, dnorm(x_vals, mean1, sd1), col = "red", lwd = 2)
 
 ```
 
