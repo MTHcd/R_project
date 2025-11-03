@@ -5,14 +5,14 @@ output: html_document
 # Question 1: Estimateurs Non Paramétriques avec récursivité de la dérivée d'une fonction de régression non paramétrique
 
 ```{r}
-N <- 1000 # sample size
-alpha <- 10 # parameter for h_n
-seq_h <- sapply(seq(1, N, 1), e_n) # bandwidth
-e_n <- function(x) {
+N <- 10000 # sample size
+alpha <- 0.3 # selected by cross validation (to check)
+e_N <- function(x) {
   return((1/x^alpha))
 }
-Y <- rnorm(N, 0, 1) # proxy data
-X <- seq(1, 1000, 1) # time data
+h <- sapply(seq(1, N, 1), e_N) # bandwidth
+
+
 
 # K values
 # gaussian -> pnorm(x)
@@ -24,30 +24,22 @@ X <- seq(1, 1000, 1) # time data
 # quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
 # epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0)
 
-K <- function(x) {
-  return() 
-}
-
-K_prime <- function(x) {
-  return()
-}
-
 # estimator n°1 toolbox
 
 h_N <- function(x) {
-  return((1/N)*(sum((Y/h)*K((x-X)/h))))
+  return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
 }
 
 g_N <- function(x) {
-  return((1/N)*(sum((1/h)*K((x-X)/h))))
+  return((1/N)*(sum((1/h)*K((x-X_N)/h))))
 }
 
 h_N_prime <- function(x) {
-  return((1/N)*(sum((Y/h^2)*K_prime((x-X)/h))))
+  return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
 }
 
 g_N_prime <- function(x) {
-  return((1/N)*(sum((1/h^2)*K_prime((x-X)/h))))
+  return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
 }
 
 es_n1 <- function(x) {
@@ -56,13 +48,7 @@ es_n1 <- function(x) {
 
 # estimator n°2
 
-g <- function(x) {
-  return(print("case g is known"))
-}
 
-g_prime <- function(x){
-  return(print"case g is known")
-}
 
 es_n2 <- function(x) {
   return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
@@ -71,7 +57,7 @@ es_n2 <- function(x) {
 # estimator n°3
 
 es_n3 <- function(x) {
-  return((1/N)*(sum(Y/g(x)*h_N^2)*K_prime((x-X_N)/h_N)))
+  return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h)))
 }
 
 ```
@@ -80,33 +66,121 @@ es_n3 <- function(x) {
 
 ```{r}
 
-## Dans les graphiques -> que prennent-ils comme noyaux ?
-## Dans les graphiques -> que fixent-ils comme bandwidth ?
-## Dans les graphiques -> quelle valeur fixent-ils pour g ?
+## Dans les graphiques -> que prennent-ils comme noyaux ? => pas un choix important
+## Dans les graphiques -> que fixent-ils comme bandwidth ? => validation croisée
 
 f <- function(x) {
   return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
 }
-
 f_prime <- function(x) {
   return(sin(4*pi*x^2)+8*pi*x(x+2)cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
 }
-
-eps <- rnorm(N, 0, 1)
-X <- runif(N, 0, 1) # p = 1
 
 # if 1/2 < p <= 1
 # then B(2p-1) if 1 => I2 if 0 => I1 or I3
 # if 1 => unif(I2)
 # if 0 => B(1-p) => if 1 => unif(I1), else unif(I3)
 
+# a.s. conv checked with N = 10000
+# plotting es_1, es_2, es_3 against f_prime on [0, 1]
+# Epanechikov Kernel
 
+
+alpha <- 0.3 # selected by cross validation (to check)
+e_N <- function(x) {
+  return((1/x^alpha))
+}
+h <- sapply(seq(1, N, 1), e_N) # bandwidth
+
+# K values
+# gaussian -> pnorm(x)
+# quadratic -> ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2), 0)
+# epanechnikov -> ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)
+
+# K prime values
+# gaussian -> -(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2)
+# quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
+# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0)
+
+
+N <- 10000
+eps_N <- rnorm(N, 0, 1)
+X_N <- runif(N, 0, 1) # p = 1
+Y_N <- f(X_N) + eps_N
+
+g <- function(x) {
+  return(1)
+}
+g_prime <- function(x){
+  return(0)
+}
+
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0))
+}
+
+# estimator n°1
+h_N <- function(x) {
+  return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
+}
+g_N <- function(x) {
+  return((1/N)*(sum((1/h)*K((x-X_N)/h))))
+}
+h_N_prime <- function(x) {
+  return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
+}
+g_N_prime <- function(x) {
+  return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
+}
+es_n1 <- function(x) {
+  return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+}
+
+# estimator n°2
+es_n2 <- function(x) {
+  return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+}
+
+# estimator n°3
+es_n3 <- function(x) {
+  return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h)))
+}
+
+
+# asymptotic normality checked at x = 0.5 and x = 0.8
+# N = 2000
 
 ```
 
 ## Figure 1 (almost sure convergence)
 
 ```{r}
+library(ggplot2)
+x <- seq(0, 1, length.out = 200)
+df <- data.frame(
+  x = rep(x, 4),
+  y = c(f_prime(x), es_n1(x), es_n2(x), es_n3(x)),
+  curve = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
+)
+ggplot(df, aes(x = x, y = y, color = curve, linetype = curve)) +
+  geom_line(size = 1.2) +
+  geom_point(
+    data = subset(df, curve != "Target"),
+    size = 1.5,
+    alpha = 0.7
+  ) +
+  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dashed", "Estimator 2" = "dotted", "Estimator 3" = "dotdash")) +
+  labs(
+    title = "Customized Curves on [0, 1]",
+    x = "x",
+    y = "y",
+    color = "Function",
+    linetype = "Function"
+  ) +
+  theme_minimal(base_size = 14)
 
 ```
 
