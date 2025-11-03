@@ -12,8 +12,6 @@ e_N <- function(x) {
 }
 h <- sapply(seq(1, N, 1), e_N) # bandwidth
 
-
-
 # K values
 # gaussian -> pnorm(x)
 # quadratic -> ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2), 0)
@@ -57,12 +55,28 @@ es_n2 <- function(x) {
 # estimator n°3
 
 es_n3 <- function(x) {
-  return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h)))
+  return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h))))
 }
 
 ```
 
 # Question 2: Simulations
+
+## Bandwidth Selection with Cross-Validation
+
+```{r}
+X <- X_N
+for (k in 1:length(X_N)) {
+  X_N <- 
+}
+
+CV <- function(alpha) {
+  return((1/N)*sum(es_n1))
+}
+```
+
+
+## Simulation Implementation
 
 ```{r}
 
@@ -84,7 +98,6 @@ f_prime <- function(x) {
 # a.s. conv checked with N = 10000
 # plotting es_1, es_2, es_3 against f_prime on [0, 1]
 # Epanechikov Kernel
-
 
 alpha <- 0.3
 e_N <- function(x) {
