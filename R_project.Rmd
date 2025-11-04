@@ -64,7 +64,12 @@ es_n3 <- function(x) {
 
 ## Bandwidth Selection with Cross-Validation
 
+Alpha would depend on the chosen kernel (among gaussian, epanechnikov, quadratic) and on the chosen non parametric estimator.
+
+Here we take K(x) from Epanechnikov and we evaluate alpha depending on the chosen estimator (among Nadaraya Watson (original, Johnston, Wand)).
+
 ```{r}
+# global scope functions
 f <- function(x) {
   return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
 }
@@ -83,62 +88,75 @@ K <- function(x) {
 K_prime <- function(x) {
   return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
 }
+# data generation
 N <- 1000
 eps_N <- rnorm(N, 0, 1)
 X_N <- runif(N, 0, 1) # p = 1
 Y_N <- f(X_N) + eps_N
 
-CV <- function(alpha) {
-  # estimator n°1
-  es_n1 <- function(x) {
-    return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
-  }
-  # estimator n°2
-  es_n2 <- function(x) {
-    return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
-  }
-  # estimator n°3
-  es_n3 <- function(x) {
-    return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h))))
-  }
-  e_N <- function(x) {
-    return((1/x^alpha))
-  }
-  h <- sapply(1:N, e_N)
-  H <- h
+CV <- function(alpha) { # CV for each estimator given K, g, f, X, Y
+  res <- rep(NA, 3)
   X <- X_N
   Y <- Y_N
-  # cv_score1 <- 0
-  # cv_score2 <- 0
-  cv_score3 <- 0
-  for (k in 1:length(X_N)) {
-    X_N <- X
-    Y_N <- Y
-    h <- H[-k]
-    X_N <- X_N[-k]
-    Y_N <- Y_N[-k]
-    h_N <- function(x) {
-      return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
+  for (j in 1:3) {
+    cv_score <- 0
+    e_N <- function(x) { # make alpha dependent to the estimator
+    return((1/x^alpha[j]))
     }
-    g_N <- function(x) {
-      return((1/N)*(sum((1/h)*K((x-X_N)/h))))
+    h <- (1:N)^(-alpha[j])
+    H <- h
+    for (k in 1:length(X_N)) { # compute CV_score
+      X_N <- X
+      Y_N <- Y
+      h <- H[-k]
+      X_N <- X_N[-k]
+      Y_N <- Y_N[-k]
+      es_n1 <- function(x) {
+        return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+      }
+      es_n2 <- function(x) {
+        return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+      }
+      es_n3 <- function(x) {
+        return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h))))
+      }
+      h_N <- function(x) {
+        return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
+      }
+      g_N <- function(x) {
+        return((1/N)*(sum((1/h)*K((x-X_N)/h))))
+      }
+      h_N_prime <- function(x) {
+        return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
+      }
+      g_N_prime <- function(x) {
+        return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
+      }
+      if (j == 1) {
+        cv_score <- cv_score + (1/N)*(es_n1(X[k]) - f_prime(X[k]))^2
+      } else if (j == 2) {
+        cv_score <- cv_score + (1/N)*(es_n2(X[k]) - f_prime(X[k]))^2
+      } else {
+        cv_score <- cv_score + (1/N)*(es_n3(X[k]) - f_prime(X[k]))^2
+      }
     }
-    h_N_prime <- function(x) {
-      return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
-    }
-    g_N_prime <- function(x) {
-      return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
-    }
-    # cv_score1 <- cv_score1 + (1/N)*(es_n1(X[k]) - f_prime(X[k]))^2
-    # cv_score2 <- cv_score2 + (1/N)*(es_n2(X[k]) - f_prime(X[k]))^2
-    cv_score3 <- cv_score3 + (1/N)*(es_n3(X[k]) - f_prime(X[k]))^2
+    res[j] <- cv_score
   }
-  return(cv_score3)
+  return(sum(res))
 }
 
 # Optimal bandwidth
-res <- optimize(CV, interval = c(1/5,1/3))
-alpha_star <-res$minimum
+library(stats)
+res <- optim(par=c(0.3, 0.3, 0.3), fn = CV, lower = c(1/5,1/5,1/5), upper=c(1/3,1/3,1/3), method="L-BFGS-B")
+alpha_star <-res$par
+alpha_star
+# define es_nj(x, X_N, Y_N, h) for bandwidth CV j in {1, 2, 3}
+# CV for simulation purpose => OK to diff with f_prime
+# otherwise ==> diff with Y observed
+# vectorize kernel estimators using outer()
+# check boundary issue X has support (0, 1) and Kernel has support [-1, 1] => reflection method
+
+# results ==> saturating at upper bound to minimize the CV function and maintain asymptotic results of Theorem 3.2
 ```
 
 
@@ -364,6 +382,54 @@ lines(x_vals, dnorm(x_vals, mean0, sd0), col = "red", lwd = 2)
 hist(X1, freq = FALSE, col = "blue")
 lines(x_vals, dnorm(x_vals, mean1, sd1), col = "red", lwd = 2)
 
+```
+
+
+## Question 3: Comparing Kernels with MSE criterion
+## x = 0.5 and x = 0.8
+## Question : Comparing Kernels with MISE criterion
+
+```{r}
+# values of alpha pre-defined with Q2 b)
+# N <- 2000
+# B <- 200
+# x0 <- 0.5
+# x1 <- 0.8
+# MSE_K_ES = MEAN(ES(X) - f_prime(X))^2 + VAR(ES(X))
+# MSE_K1_ES1(x0)
+# MSE_K2_ES1(x0)
+# MSE_K3_ES1(x0)
+# MSE_K1_ES1(x1)
+# MSE_K2_ES1(x1)
+# MSE_K3_ES1(x1)
+
+# MSE_K1_ES2(x0)
+# MSE_K2_ES2(x0)
+# MSE_K3_ES2(x0)
+# MSE_K1_ES2(x1)
+# MSE_K2_ES2(x1)
+# MSE_K3_ES2(x1)
+
+# MSE_K1_ES3(x0)
+# MSE_K2_ES3(x0)
+# MSE_K3_ES3(x0)
+# MSE_K1_ES3(x1)
+# MSE_K2_ES3(x1)
+# MSE_K3_ES3(x1)
+
+# Riemann approximation
+# D <- value of discretization of [0, 1]
+# SUPP <- (1:D)^(-1)
+# MISE_K_ES = sum_{k=1}^D (1/D)*(MEAN(ES(x_k) - f_prime(x_k))^2 + VAR(ES(x_k))) 
+# MISE_K1_ES1
+# MISE_K2_ES1
+# MISE_K3_ES1
+# MISE_K1_ES2
+# MISE_K2_ES2
+# MISE_K3_ES2
+# MISE_K1_ES3
+# MISE_K2_ES3
+# MISE_K3_ES3
 ```
 
 # Annexe
