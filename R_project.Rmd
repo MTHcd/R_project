@@ -2,62 +2,43 @@
 title: "R_project: Programmation et traitement statistique des données"
 output: html_document
 ---
-# Question 1: Estimateurs Non Paramétriques avec récursivité de la dérivée d'une fonction de régression non paramétrique
+# Question 1
+
+$$\hat{f}^{',1}_n(x) = \frac{\hat{h}'_n(x)}{\hat{g}_n(x)} -  \frac{\hat{h}_n(x)\hat{g}'_n(x)}{\hat{g}_n(x)^2}$$
+$$\hat{f}^{',2}_n(x) = \frac{\hat{h}'_n(x)}{g(x)} - \frac{\hat{h}'_n(x)g'(x)}{g(x)^2}$$
+$$\hat{f}^{',3}_n(x) = \frac{1}{n}\sum_{k=1}^n \frac{Y_k}{g(X_k)h_k^2}K'(\frac{x-X_k}{h_k})$$
+
+$$\hat{h}_n(x) = \frac{1}{n} \sum_{k=1}^n \frac{Y_k}{h_k}K(\frac{x-X_k}{h_k})$$
+
+$$\hat{g}_n(x) = \frac{1}{n}\sum_{k=1}^n\frac{1}{h_k}K(\frac{x-X_k}{h_k})$$
 
 ```{r}
+
 N <- 10000 # sample size
-alpha <- 0.3 # selected by cross validation (to check)
-e_N <- function(x) {
-  return((1/x^alpha))
-}
-h <- sapply(seq(1, N, 1), e_N) # bandwidth
-
-# K values
-# gaussian -> pnorm(x)
-# quadratic -> ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2), 0)
-# epanechnikov -> ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)
-
-# K prime values
-# gaussian -> -(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2)
-# quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
-# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x)*(1-x^2), 0)
-
-# estimator n°1 toolbox
+alpha <- 0.3 # value given in the paper obtained with CV
+h <- (1:N)^(-alpha)# bandwidth
 
 h_N <- function(x) {
   return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
 }
-
 g_N <- function(x) {
   return((1/N)*(sum((1/h)*K((x-X_N)/h))))
 }
-
 h_N_prime <- function(x) {
   return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
 }
-
 g_N_prime <- function(x) {
   return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
 }
-
-es_n1 <- function(x) {
+es_n1 <- function(x) { # recursive version of Nadaraya Watson (Parzen 1962; Rosenblatt 1956)
   return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
 }
-
-# estimator n°2
-
-
-
-es_n2 <- function(x) {
+es_n2 <- function(x) { # Johnston (1982)
   return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
 }
-
-# estimator n°3
-
-es_n3 <- function(x) {
+es_n3 <- function(x) { # Wand and Jones (1995)
   return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h))))
 }
-
 ```
 
 # Question 2: Simulations
@@ -66,107 +47,212 @@ es_n3 <- function(x) {
 
 Alpha would depend on the chosen kernel (among gaussian, epanechnikov, quadratic) and on the chosen non parametric estimator.
 
-Here we take K(x) from Epanechnikov and we evaluate alpha depending on the chosen estimator (among Nadaraya Watson (original, Johnston, Wand)).
+Here we take K from Epanechnikov and we evaluate alpha depending on the chosen estimator in recursive form (original, Johnston, Wand)).
 
 ```{r}
-# global scope functions
-f <- function(x) {
+# global setting for CV
+# global functions invariant to kernel and estimator choice
+# data generation
+
+f <- function(x) { # primitive of target function
   return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
 }
-f_prime <- function(x) {
+f_prime <- function(x) { # target function
   return(sin(4*pi*x^2)+8*pi*x*(x+2)*cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
 }
-g <- function(x) {
+g <- function(x) { # density of X
   return(1)
 }
 g_prime <- function(x){
   return(0)
 }
-K <- function(x) {
+
+# data generation
+N <- 1000 # sample size
+eps <- rnorm(N, 0, 1) # error term
+X <- runif(N, 0, 1) # X ~ U[0, 1] with density g
+Y <- f(X) + eps # (Y, X) non parametric relation
+```
+
+```{r}
+K <- function(x) { # Epanechnikov kernel
   return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
 }
-K_prime <- function(x) {
+K_prime <- function(x) { # derivative of kernel
   return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
 }
-# data generation
-N <- 1000
-eps_N <- rnorm(N, 0, 1)
-X_N <- runif(N, 0, 1) # p = 1
-Y_N <- f(X_N) + eps_N
+```
 
-CV <- function(alpha) { # CV for each estimator given K, g, f, X, Y
-  res <- rep(NA, 3)
-  X <- X_N
-  Y <- Y_N
-  for (j in 1:3) {
+```{r}
+# Cross Validation function
+CV_es1 <- function(alpha) { # CV for each estimator given K, g, f, X, Y
     cv_score <- 0
-    e_N <- function(x) { # make alpha dependent to the estimator
-    return((1/x^alpha[j]))
-    }
-    h <- (1:N)^(-alpha[j])
-    H <- h
-    for (k in 1:length(X_N)) { # compute CV_score
-      X_N <- X
-      Y_N <- Y
-      h <- H[-k]
-      X_N <- X_N[-k]
-      Y_N <- Y_N[-k]
+    h <- (1:N)^(-alpha)
+    H <- h # saving for LOOCV
+    for (k in 1:length(X)) { # proceeding to LOOCV
+      # cv_[esn_j](X_(-1)) + ... + cv_j(X_(-n))
+      X_N <- X # (X_1, ..., X_N)
+      Y_N <- Y # (Y_1, ..., Y_N)
+      h <- H[-k] # leaving one out
+      X_N <- X_N[-k] # leaving one out
+      Y_N <- Y_N[-k] # leaving one out
       es_n1 <- function(x) {
         return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
       }
+      h_N <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
+      }
+      g_N <- function(x) {# p(X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((1/h)*K((x-X_N)/h))))
+      }
+      h_N_prime <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
+      }
+      g_N_prime <- function(x) {# p(X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
+      }
+      cv_score <- cv_score + (1/N)*(es_n1(X[k]) - f_prime(X[k]))^2
+    }
+      return(cv_score)
+  }
+
+CV_es2 <- function(alpha) { # CV for each estimator given K, g, f, X, Y
+    cv_score <- 0
+    h <- (1:N)^(-alpha)
+    H <- h # saving for LOOCV
+    for (k in 1:length(X)) { # proceeding to LOOCV
+      # cv_[esn_j](X_(-1)) + ... + cv_j(X_(-n))
+      X_N <- X # (X_1, ..., X_N)
+      Y_N <- Y # (Y_1, ..., Y_N)
+      h <- H[-k] # leaving one out
+      X_N <- X_N[-k] # leaving one out
+      Y_N <- Y_N[-k] # leaving one out
       es_n2 <- function(x) {
         return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
       }
-      es_n3 <- function(x) {
-        return((1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x-X_N)/h))))
-      }
-      h_N <- function(x) {
+      h_N <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
         return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
       }
-      g_N <- function(x) {
+      g_N <- function(x) {# p(X_N,h) => impacted by LOOCV
         return((1/N)*(sum((1/h)*K((x-X_N)/h))))
       }
-      h_N_prime <- function(x) {
+      h_N_prime <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
         return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
       }
-      g_N_prime <- function(x) {
+      g_N_prime <- function(x) {# p(X_N,h) => impacted by LOOCV
         return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
       }
-      if (j == 1) {
-        cv_score <- cv_score + (1/N)*(es_n1(X[k]) - f_prime(X[k]))^2
-      } else if (j == 2) {
-        cv_score <- cv_score + (1/N)*(es_n2(X[k]) - f_prime(X[k]))^2
-      } else {
-        cv_score <- cv_score + (1/N)*(es_n3(X[k]) - f_prime(X[k]))^2
-      }
+      cv_score <- cv_score + (1/N)*(es_n2(X[k]) - f_prime(X[k]))^2
     }
-    res[j] <- cv_score
+    return(cv_score)
   }
-  return(sum(res))
+
+CV_es3 <- function(alpha) { # CV for each estimator given K, g, f, X, Y
+    cv_score <- 0
+    h <- (1:N)^(-alpha)
+    H <- h # saving for LOOCV
+    for (k in 1:length(X)) { # proceeding to LOOCV
+      # cv_[esn_j](X_(-1)) + ... + cv_j(X_(-n))
+      X_N <- X # (X_1, ..., X_N)
+      Y_N <- Y # (Y_1, ..., Y_N)
+      h <- H[-k] # leaving one out
+      X_N <- X_N[-k] # leaving one out
+      Y_N <- Y_N[-k] # leaving one out
+      es_n3 <- function(x) {
+          y <- rep(NA, length(x))
+          for (j in 1:length(x)) {
+            y[j] <- (1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x[j]-X_N)/h)))
+          }
+          return(y)
+      } 
+      h_N <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((Y_N/h)*K((x-X_N)/h))))
+      }
+      g_N <- function(x) {# p(X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((1/h)*K((x-X_N)/h))))
+      }
+      h_N_prime <- function(x) {# p(Y_N,X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((Y_N/h^2)*K_prime((x-X_N)/h))))
+      }
+      g_N_prime <- function(x) {# p(X_N,h) => impacted by LOOCV
+        return((1/N)*(sum((1/h^2)*K_prime((x-X_N)/h))))
+      }
+      cv_score <- cv_score + (1/N)*(es_n3(X[k]) - f_prime(X[k]))^2
+    }
+      return(cv_score)
 }
-
-# Optimal bandwidth
-library(stats)
-res <- optim(par=c(0.3, 0.3, 0.3), fn = CV, lower = c(1/5,1/5,1/5), upper=c(1/3,1/3,1/3), method="L-BFGS-B")
-alpha_star <-res$par
-alpha_star
-# define es_nj(x, X_N, Y_N, h) for bandwidth CV j in {1, 2, 3}
-# CV for simulation purpose => OK to diff with f_prime
-# otherwise ==> diff with Y observed
-# vectorize kernel estimators using outer()
-# check boundary issue X has support (0, 1) and Kernel has support [-1, 1] => reflection method
-
-# results ==> saturating at upper bound to minimize the CV function and maintain asymptotic results of Theorem 3.2
 ```
 
+```{r}
+# Optimal bandwidth for Kernel 1 and es_n1, es_n2, es_n3
+library(stats)
+res_es1 <- optim(par=0.3, fn = CV_es1, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es1 <-res_es1$par
+alpha_star_es1
+res_es2 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es2 <-res_es2$par
+alpha_star_es2
+res_es3 <- optim(par=0.3, fn = CV_es3, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es3 <-res_es3$par
+alpha_star_es3
+```
 
+```{r}
+K <- function(x) {
+  return(pnorm(x)) 
+}
+K_prime <- function(x) {
+  return(-(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2))))
+}
+```
+
+```{r}
+# Optimal bandwidth for Kernel 2 and es_n1, es_n2, es_n3
+# Optimal bandwidth for Kernel 1 and es_n1, es_n2, es_n3
+library(stats)
+res_es1 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es1 <-res_es1$par
+alpha_star_es1
+res_es2 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es2 <-res_es2$par
+alpha_star_es2
+res_es3 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es3 <-res_es3$par
+alpha_star_es3
+```
+
+```{r}
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2, 0))
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0))
+}
+```
+
+```{r}
+library(stats)
+res_es1 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es1 <-res_es1$par
+alpha_star_es1
+res_es2 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es2 <-res_es2$par
+alpha_star_es2
+res_es3 <- optim(par=0.3, fn = CV_es2, lower = 1/5, upper=1/3, method="L-BFGS-B")
+alpha_star_es3 <-res_es3$par
+alpha_star_es3
+```
 ## Simulation Implementation
 
 ```{r}
-
-## Dans les graphiques -> que prennent-ils comme noyaux ? => pas un choix important
-## Dans les graphiques -> que fixent-ils comme bandwidth ? => validation croisée
-
+# data generation
+alpha <- 1/3 # optimal bandwidth by LOOCV
+h <- (1:N)^(-alpha) # bandwidth
+N <- 10000 # sample size
+eps_N <- rnorm(N, 0, 1) # error term
+X_N <- runif(N, 0, 1) # X ~ U[0, 1]
+Y_N <- f(X_N) + eps_N # Non parametric relation between X and Y
+# global functions and data generation
 f <- function(x) {
   return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
 }
@@ -174,52 +260,6 @@ f_prime <- function(x) {
   return(sin(4*pi*x^2)+8*pi*x*(x+2)*cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
 }
 
-# if 1/2 < p <= 1
-# then B(2p-1) if 1 => I2 if 0 => I1 or I3
-# if 1 => unif(I2)
-# if 0 => B(1-p) => if 1 => unif(I1), else unif(I3)
-
-# a.s. conv checked with N = 10000
-# plotting es_1, es_2, es_3 against f_prime on [0, 1]
-# Epanechikov Kernel
-
-alpha <- 0.3263603
-e_N <- function(x) {
-  return((1/x^alpha))
-}
-h <- sapply(seq(1, N, 1), e_N) # bandwidth
-
-# K values
-# gaussian -> pnorm(x)
-# quadratic -> ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2), 0)
-# epanechnikov -> ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)
-
-# K prime values
-# gaussian -> -(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2)
-# quadratic -> ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0)
-# epanechnikov -> ifelse(abs(x) <= 1, -(3/2)*(x), 0)
-
-
-N <- 10000
-eps_N <- rnorm(N, 0, 1)
-X_N <- runif(N, 0, 1) # p = 1
-Y_N <- f(X_N) + eps_N
-
-g <- function(x) {
-  return(1)
-}
-g_prime <- function(x){
-  return(0)
-}
-
-K <- function(x) {
-  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
-}
-K_prime <- function(x) {
-  return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
-}
-
-# estimator n°1
 h_N <- function(x) {
   y <- rep(NA, length(x))
   for (j in 1:length(x)) {
@@ -248,14 +288,13 @@ g_N_prime <- function(x) {
   }
   return(y)
 }
+# estimators
 es_n1 <- function(x) {
   return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
 }
-# estimator n°2
 es_n2 <- function(x) {
   return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
 }
-# estimator n°3
 es_n3 <- function(x) {
   y <- rep(NA, length(x))
   for (j in 1:length(x)) {
@@ -263,50 +302,165 @@ es_n3 <- function(x) {
   }
   return(y)
 }
-
-
-# asymptotic normality checked at x = 0.5 and x = 0.8
-# N = 2000
-
+# density of X
+g <- function(x) {
+  return(1)
+}
+g_prime <- function(x){
+  return(0)
+}
 ```
 
-## Figure 1 (almost sure convergence)
+```{r}
+# Select Kernel for a.s. convergence plot
+# epanechnikov kernel
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
+}
+```
+
+## Figure 1 (almost sure convergence of three estimators) with Epanechnikov Kernel
 
 ```{r}
 library(ggplot2)
-x <- seq(0, 1, length.out = 1000)
-df <- data.frame(
+x <- seq(0, 1, length.out = 1000) # plot on interval 0, 1
+df <- data.frame( # plot of f', es_n1, es_n2, es_n3
   x = rep(x, 4),
   y = c(f_prime(x), es_n1(x), es_n2(x), es_n3(x)),
-  curve = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
+  curve_name = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
 )
-ggplot(df, aes(x = x, y = y, color = curve, linetype = curve)) +
+ggplot(df, aes(x = x, y = y, color = curve_name, linetype = curve_name)) + # specifying the ggplot ; curve distinguishable by color and linetype
   geom_line(size = 0.5) +
-  geom_point(
-    data = subset(df, curve != "Target"),
+  geom_point( # adding points gives better look
+    data = subset(df, curve_name != "Target"),
     size = 0.5,
-    alpha = 0.7
   ) +
-  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dotted", "Estimator 2" = "dotted", "Estimator 3" = "dotted")) +
+  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dotted", "Estimator 2" = "dotted", "Estimator 3" = "dotted")) + # setting of linetypes by curve
   labs(
-    title = "Customized Curves on [0, 1]",
+    title = "Almost sure Convergence of fn'_1, fn'_2, fn'_3 to f'",
     x = "x",
     y = "y",
     color = "Function",
-    linetype = "Function"
+    linetype = "Function" # obtain a single legend applying for both colors and linetype
   ) +
-  theme_minimal()
-
+  theme_classic()
 ```
 
-## Figure 2 (CLT)
+```{r}
+# gaussian kernel
+K <- function(x) {
+  return(pnorm(x)) 
+}
+K_prime <- function(x) {
+  return(-(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2))))
+}
+```
+
+## Figure 1 (almost sure convergence of three estimators) with Gaussian Kernel
 
 ```{r}
-N <- 10000
-B <- 200
+library(ggplot2)
+x <- seq(0, 1, length.out = 1000) # plot on interval 0, 1
+df <- data.frame( # plot of f', es_n1, es_n2, es_n3
+  x = rep(x, 4),
+  y = c(f_prime(x), es_n1(x), es_n2(x), es_n3(x)),
+  curve_name = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
+)
+ggplot(df, aes(x = x, y = y, color = curve_name, linetype = curve_name)) + # specifying the ggplot ; curve distinguishable by color and linetype
+  geom_line(size = 0.5) +
+  geom_point( # adding points gives better look
+    data = subset(df, curve_name != "Target"),
+    size = 0.5,
+  ) +
+  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dotted", "Estimator 2" = "dotted", "Estimator 3" = "dotted")) + # setting of linetypes by curve
+  labs(
+    title = "Almost sure Convergence of fn'_1, fn'_2, fn'_3 to f'",
+    x = "x",
+    y = "y",
+    color = "Function",
+    linetype = "Function" # obtain a single legend applying for both colors and linetype
+  ) +
+  theme_classic()
+```
+
+```{r}
+# quadratic kernel
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2, 0))
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0))
+}
+```
+
+## Figure 1 (almost sure convergence of three estimators) with Quadratic Kernel
+
+```{r}
+library(ggplot2)
+x <- seq(0, 1, length.out = 1000) # plot on interval 0, 1
+df <- data.frame( # plot of f', es_n1, es_n2, es_n3
+  x = rep(x, 4),
+  y = c(f_prime(x), es_n1(x), es_n2(x), es_n3(x)),
+  curve_name = factor(rep(c("Target","Estimator 1", "Estimator 2", "Estimator 3"), each = length(x)))
+)
+ggplot(df, aes(x = x, y = y, color = curve_name, linetype = curve_name)) + # specifying the ggplot ; curve distinguishable by color and linetype
+  geom_line(size = 0.5) +
+  geom_point( # adding points gives better look
+    data = subset(df, curve_name != "Target"),
+    size = 0.5,
+  ) +
+  scale_linetype_manual(values = c("Target" = "solid", "Estimator 1" = "dotted", "Estimator 2" = "dotted", "Estimator 3" = "dotted")) + # setting of linetypes by curve
+  labs(
+    title = "Almost sure Convergence of fn'_1, fn'_2, fn'_3 to f'",
+    x = "x",
+    y = "y",
+    color = "Function",
+    linetype = "Function" # obtain a single legend applying for both colors and linetype
+  ) +
+  theme_classic()
+```
+
+```{r}
+# global functions and data generation
+f <- function(x) {
+  return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
+}
+f_prime <- function(x) {
+  return(sin(4*pi*x^2)+8*pi*x*(x+2)*cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
+}
+# density of X
+g <- function(x) {
+  return(1)
+}
+g_prime <- function(x){
+  return(0)
+}
+```
+
+```{r}
+# Select Kernel for CLT result
+# epanechnikov kernel
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
+}
+```
+
+## Figure 2 (CLT) with Epanechnikov Kernel
+
+```{r}
+N <- 2000
+B <- 500
 x0 <- 0.5
+alpha <- 0.319 # to obtain centered for both x0 and x1; though not a.s. conv on x1 with alpha != 1/3 high variance may explain why centered ? x0 centered on a.s. conv plot at alpha in (0.319 +- epsilon) and f^2(x0) = 0, see normality convergence on paper
 x1 <- 0.8
 par(mfrow=c(3,2))
+
 set.seed(123)
 ES1_X0 <- rep(NA, B)
 ES2_X0 <- rep(NA, B)
@@ -314,11 +468,8 @@ ES3_X0 <- rep(NA, B)
 ES1_X1 <- rep(NA, B)
 ES2_X1 <- rep(NA, B)
 ES3_X1 <- rep(NA, B)
-for (b in 1:200) {
-  e_N <- function(x) {
-  return((1/x^alpha))
-  }
-  h <- sapply(seq(1, N, 1), e_N)
+for (b in 1:B) {
+  h <- (1:N)^(-alpha)
   eps_N <- rnorm(N, 0, 1)
   X_N <- runif(N, 0, 1)
   Y_N <- f(X_N) + eps_N
@@ -372,64 +523,501 @@ for (b in 1:200) {
   ES3_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x1) - f_prime(x1))
 }
 
-mean0 <- mean(X0); sd0 <- sd(X0)
-mean1 <- mean(X1); sd1 <- sd(X1)
-x_range <- range(c(X0, X1))
-x_vals <- seq(x_range[1], x_range[2], length.out = 200)
-hist(X0, freq = FALSE, col = "blue",
-     xlab = "Value", ylim = c(0, max(density(X0)$y, density(X1)$y)*1.2))
-lines(x_vals, dnorm(x_vals, mean0, sd0), col = "red", lwd = 2)
-hist(X1, freq = FALSE, col = "blue")
-lines(x_vals, dnorm(x_vals, mean1, sd1), col = "red", lwd = 2)
+VES1X0 <- c(mean(ES1_X0),sd(ES1_X0))
+VES1X1 <- c(mean(ES1_X1),sd(ES1_X1))
+VES2X0 <- c(mean(ES2_X0),sd(ES2_X0))
+VES2X1 <- c(mean(ES2_X1),sd(ES2_X1))
+VES3X0 <- c(mean(ES3_X0),sd(ES3_X0))
+VES3X1 <- c(mean(ES3_X1),sd(ES3_X1))
+nbins <- 10
+XVALS_ES1_X0 <- seq(min(ES1_X0), max(ES1_X0), length.out = 200)
+hist(main="", ES1_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X0)$y)*1.5))
+lines(XVALS_ES1_X0, dnorm(XVALS_ES1_X0, VES1X0[1], VES1X0[2]), col = "red", lwd = 2)
+hist(main="", ES1_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X1)$y)*1.5))
+XVALS_ES1_X1 <- seq(min(ES1_X1), max(ES1_X1), length.out = 200)
+lines(XVALS_ES1_X1, dnorm(XVALS_ES1_X1, VES1X1[1], VES1X1[2]), col = "red", lwd = 2)
 
+XVALS_ES2_X0 <- seq(min(ES2_X0), max(ES2_X0), length.out = 200)
+hist(main="", ES2_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X0)$y)*1.5))
+lines(XVALS_ES2_X0, dnorm(XVALS_ES2_X0, VES2X0[1], VES2X0[2]), col = "red", lwd = 2)
+hist(main="", ES2_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X1)$y)*1.5))
+XVALS_ES2_X1 <- seq(min(ES2_X1), max(ES2_X1), length.out = 200)
+lines(XVALS_ES2_X1, dnorm(XVALS_ES2_X1, VES2X1[1], VES2X1[2]), col = "red", lwd = 2)
+
+XVALS_ES3_X0 <- seq(min(ES3_X0), max(ES3_X0), length.out = 200)
+hist(main="", ES3_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X0)$y)*1.5))
+lines(XVALS_ES3_X0, dnorm(XVALS_ES3_X0, VES3X0[1], VES3X0[2]), col = "red", lwd = 2)
+hist(main="", ES3_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X1)$y)*1.5))
+XVALS_ES3_X1 <- seq(min(ES3_X1), max(ES3_X1), length.out = 200)
+lines(XVALS_ES3_X1, dnorm(XVALS_ES3_X1, VES3X1[1], VES3X1[2]), col = "red", lwd = 2)
 ```
 
+```{r}
+# gaussian kernel
+K <- function(x) {
+  return(pnorm(x)) 
+}
+K_prime <- function(x) {
+  return(-(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2))))
+}
+```
 
+## Figure 2 (CLT) with Gaussian Kernel
+
+```{r}
+N <- 2000
+B <- 500
+x0 <- 0.5
+alpha <- 0.319 # to obtain centered for both x0 and x1; though not a.s. conv on x1 with alpha != 1/3 high variance may explain why centered ? x0 centered on a.s. conv plot at alpha in (0.319 +- epsilon) and f^2(x0) = 0, see normality convergence on paper
+x1 <- 0.8
+par(mfrow=c(3,2))
+
+set.seed(123)
+ES1_X0 <- rep(NA, B)
+ES2_X0 <- rep(NA, B)
+ES3_X0 <- rep(NA, B)
+ES1_X1 <- rep(NA, B)
+ES2_X1 <- rep(NA, B)
+ES3_X1 <- rep(NA, B)
+for (b in 1:B) {
+  h <- (1:N)^(-alpha)
+  eps_N <- rnorm(N, 0, 1)
+  X_N <- runif(N, 0, 1)
+  Y_N <- f(X_N) + eps_N
+  h_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  h_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  es_n1 <- function(x) {
+    return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+    }
+  es_n2 <- function(x) {
+    return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+    }
+  es_n3 <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  ES1_X0[b] <- sqrt(N*(1/N^alpha)^3)*
+(es_n1(x0) - f_prime(x0))
+  ES2_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x0) - f_prime(x0))
+  ES3_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x0) - f_prime(x0))
+  ES1_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n1(x1) - f_prime(x1))
+  ES2_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x1) - f_prime(x1))
+  ES3_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x1) - f_prime(x1))
+}
+
+VES1X0 <- c(mean(ES1_X0),sd(ES1_X0))
+VES1X1 <- c(mean(ES1_X1),sd(ES1_X1))
+VES2X0 <- c(mean(ES2_X0),sd(ES2_X0))
+VES2X1 <- c(mean(ES2_X1),sd(ES2_X1))
+VES3X0 <- c(mean(ES3_X0),sd(ES3_X0))
+VES3X1 <- c(mean(ES3_X1),sd(ES3_X1))
+nbins <- 10
+XVALS_ES1_X0 <- seq(min(ES1_X0), max(ES1_X0), length.out = 200)
+hist(main="", ES1_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X0)$y)*1.5))
+lines(XVALS_ES1_X0, dnorm(XVALS_ES1_X0, VES1X0[1], VES1X0[2]), col = "red", lwd = 2)
+hist(main="", ES1_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X1)$y)*1.5))
+XVALS_ES1_X1 <- seq(min(ES1_X1), max(ES1_X1), length.out = 200)
+lines(XVALS_ES1_X1, dnorm(XVALS_ES1_X1, VES1X1[1], VES1X1[2]), col = "red", lwd = 2)
+
+XVALS_ES2_X0 <- seq(min(ES2_X0), max(ES2_X0), length.out = 200)
+hist(main="", ES2_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X0)$y)*1.5))
+lines(XVALS_ES2_X0, dnorm(XVALS_ES2_X0, VES2X0[1], VES2X0[2]), col = "red", lwd = 2)
+hist(main="", ES2_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X1)$y)*1.5))
+XVALS_ES2_X1 <- seq(min(ES2_X1), max(ES2_X1), length.out = 200)
+lines(XVALS_ES2_X1, dnorm(XVALS_ES2_X1, VES2X1[1], VES2X1[2]), col = "red", lwd = 2)
+
+XVALS_ES3_X0 <- seq(min(ES3_X0), max(ES3_X0), length.out = 200)
+hist(main="", ES3_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X0)$y)*1.5))
+lines(XVALS_ES3_X0, dnorm(XVALS_ES3_X0, VES3X0[1], VES3X0[2]), col = "red", lwd = 2)
+hist(main="", ES3_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X1)$y)*1.5))
+XVALS_ES3_X1 <- seq(min(ES3_X1), max(ES3_X1), length.out = 200)
+lines(XVALS_ES3_X1, dnorm(XVALS_ES3_X1, VES3X1[1], VES3X1[2]), col = "red", lwd = 2)
+```
+
+```{r}
+# quadratic kernel
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2, 0))
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0))
+}
+```
+
+## Figure 2 (CLT) with Quadratic Kernel
+
+```{r}
+N <- 2000
+B <- 500
+x0 <- 0.5
+alpha <- 0.319 # to obtain centered for both x0 and x1; though not a.s. conv on x1 with alpha != 1/3 high variance may explain why centered ? x0 centered on a.s. conv plot at alpha in (0.319 +- epsilon) and f^2(x0) = 0, see normality convergence on paper
+x1 <- 0.8
+par(mfrow=c(3,2))
+
+set.seed(123)
+ES1_X0 <- rep(NA, B)
+ES2_X0 <- rep(NA, B)
+ES3_X0 <- rep(NA, B)
+ES1_X1 <- rep(NA, B)
+ES2_X1 <- rep(NA, B)
+ES3_X1 <- rep(NA, B)
+for (b in 1:B) {
+  h <- (1:N)^(-alpha)
+  eps_N <- rnorm(N, 0, 1)
+  X_N <- runif(N, 0, 1)
+  Y_N <- f(X_N) + eps_N
+  h_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h)*K((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  h_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((Y_N/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  g_N_prime <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum((1/h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  es_n1 <- function(x) {
+    return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+    }
+  es_n2 <- function(x) {
+    return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+    }
+  es_n3 <- function(x) {
+    y <- rep(NA, length(x))
+    for (j in 1:length(x)) {
+      y[j] <- (1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x[j]-X_N)/h)))
+    }
+    return(y)
+  }
+  ES1_X0[b] <- sqrt(N*(1/N^alpha)^3)*
+(es_n1(x0) - f_prime(x0))
+  ES2_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x0) - f_prime(x0))
+  ES3_X0[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x0) - f_prime(x0))
+  ES1_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n1(x1) - f_prime(x1))
+  ES2_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n2(x1) - f_prime(x1))
+  ES3_X1[b] <- sqrt(N*(1/N^alpha)^3)*(es_n3(x1) - f_prime(x1))
+}
+
+VES1X0 <- c(mean(ES1_X0),sd(ES1_X0))
+VES1X1 <- c(mean(ES1_X1),sd(ES1_X1))
+VES2X0 <- c(mean(ES2_X0),sd(ES2_X0))
+VES2X1 <- c(mean(ES2_X1),sd(ES2_X1))
+VES3X0 <- c(mean(ES3_X0),sd(ES3_X0))
+VES3X1 <- c(mean(ES3_X1),sd(ES3_X1))
+nbins <- 10
+XVALS_ES1_X0 <- seq(min(ES1_X0), max(ES1_X0), length.out = 200)
+hist(main="", ES1_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X0)$y)*1.5))
+lines(XVALS_ES1_X0, dnorm(XVALS_ES1_X0, VES1X0[1], VES1X0[2]), col = "red", lwd = 2)
+hist(main="", ES1_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES1_X1)$y)*1.5))
+XVALS_ES1_X1 <- seq(min(ES1_X1), max(ES1_X1), length.out = 200)
+lines(XVALS_ES1_X1, dnorm(XVALS_ES1_X1, VES1X1[1], VES1X1[2]), col = "red", lwd = 2)
+
+XVALS_ES2_X0 <- seq(min(ES2_X0), max(ES2_X0), length.out = 200)
+hist(main="", ES2_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X0)$y)*1.5))
+lines(XVALS_ES2_X0, dnorm(XVALS_ES2_X0, VES2X0[1], VES2X0[2]), col = "red", lwd = 2)
+hist(main="", ES2_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES2_X1)$y)*1.5))
+XVALS_ES2_X1 <- seq(min(ES2_X1), max(ES2_X1), length.out = 200)
+lines(XVALS_ES2_X1, dnorm(XVALS_ES2_X1, VES2X1[1], VES2X1[2]), col = "red", lwd = 2)
+
+XVALS_ES3_X0 <- seq(min(ES3_X0), max(ES3_X0), length.out = 200)
+hist(main="", ES3_X0, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X0)$y)*1.5))
+lines(XVALS_ES3_X0, dnorm(XVALS_ES3_X0, VES3X0[1], VES3X0[2]), col = "red", lwd = 2)
+hist(main="", ES3_X1, breaks=nbins, freq = FALSE, col = "blue",
+     xlab = "", ylim = c(0, max(density(ES3_X1)$y)*1.5))
+XVALS_ES3_X1 <- seq(min(ES3_X1), max(ES3_X1), length.out = 200)
+lines(XVALS_ES3_X1, dnorm(XVALS_ES3_X1, VES3X1[1], VES3X1[2]), col = "red", lwd = 2)
+```
 ## Question 3: Comparing Kernels with MSE criterion
 ## x = 0.5 and x = 0.8
 ## Question : Comparing Kernels with MISE criterion
 
 ```{r}
-# values of alpha pre-defined with Q2 b)
-# N <- 2000
-# B <- 200
-# x0 <- 0.5
-# x1 <- 0.8
-# MSE_K_ES = MEAN(ES(X) - f_prime(X))^2 + VAR(ES(X))
-# MSE_K1_ES1(x0)
-# MSE_K2_ES1(x0)
-# MSE_K3_ES1(x0)
-# MSE_K1_ES1(x1)
-# MSE_K2_ES1(x1)
-# MSE_K3_ES1(x1)
+set.seed(123)
+# Setting
 
-# MSE_K1_ES2(x0)
-# MSE_K2_ES2(x0)
-# MSE_K3_ES2(x0)
-# MSE_K1_ES2(x1)
-# MSE_K2_ES2(x1)
-# MSE_K3_ES2(x1)
+# data generation parameters
+alpha <- 1/3 # optimal bandwidth by LOOCV
+h <- (1:N)^(-alpha) # bandwidth
+N <- 1000 # sample size per batch
+B <- 500 # batch
 
-# MSE_K1_ES3(x0)
-# MSE_K2_ES3(x0)
-# MSE_K3_ES3(x0)
-# MSE_K1_ES3(x1)
-# MSE_K2_ES3(x1)
-# MSE_K3_ES3(x1)
+x = c(0.5, 0.8) # values for MSE
+d <- rep(1/N, N) # discretizing tool for MISE
+x_d <- (1:N)/N # x_val for MISE
+```
 
-# Riemann approximation
-# D <- value of discretization of [0, 1]
-# SUPP <- (1:D)^(-1)
-# MISE_K_ES = sum_{k=1}^D (1/D)*(MEAN(ES(x_k) - f_prime(x_k))^2 + VAR(ES(x_k))) 
-# MISE_K1_ES1
-# MISE_K2_ES1
-# MISE_K3_ES1
-# MISE_K1_ES2
-# MISE_K2_ES2
-# MISE_K3_ES2
-# MISE_K1_ES3
-# MISE_K2_ES3
-# MISE_K3_ES3
+```{r}
+# global functions and data generation
+f <- function(x) {
+  return((x+2)*sin(4*pi*x^2)+2*sin(8*pi*x))
+}
+f_prime <- function(x) {
+  return(sin(4*pi*x^2)+8*pi*x*(x+2)*cos(4*pi*x^2) + 8*pi*cos(8*pi*x))
+}
+
+h_N <- function(x) {
+  y <- rep(NA, length(x))
+  for (j in 1:length(x)) {
+    y[j] <- (1/N)*(sum((Y_N/h)*K((x[j]-X_N)/h)))
+  }
+  return(y)
+}
+g_N <- function(x) {
+  y <- rep(NA, length(x))
+  for (j in 1:length(x)) {
+    y[j] <- (1/N)*(sum((1/h)*K((x[j]-X_N)/h)))
+  }
+  return(y)
+}
+h_N_prime <- function(x) {
+  y <- rep(NA, length(x))
+  for (j in 1:length(x)) {
+    y[j] <- (1/N)*(sum((Y_N/h^2)*K_prime((x[j]-X_N)/h)))
+  }
+  return(y)
+}
+g_N_prime <- function(x) {
+  y <- rep(NA, length(x))
+  for (j in 1:length(x)) {
+    y[j] <- (1/N)*(sum((1/h^2)*K_prime((x[j]-X_N)/h)))
+  }
+  return(y)
+}
+# estimators
+es_n1 <- function(x) {
+  return((h_N_prime(x)/g_N(x)) - (h_N(x)*g_N_prime(x))/(g_N(x))^2)
+}
+es_n2 <- function(x) {
+  return((h_N_prime(x)/g(x)) - (h_N(x)*g_prime(x))/(g(x))^2)
+}
+es_n3 <- function(x) {
+  y <- rep(NA, length(x))
+  for (j in 1:length(x)) {
+    y[j] <- (1/N)*(sum(Y_N/(g(x)*h^2)*K_prime((x[j]-X_N)/h)))
+  }
+  return(y)
+}
+# density of X
+g <- function(x) {
+  return(1)
+}
+g_prime <- function(x){
+  return(0)
+}
+```
+
+
+```{r}
+# K1 = epanechnikov
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (3/4)*(1-x^2), 0)) 
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(3/2)*x, 0))
+}
+
+ES1_X0_K1 <- rep(NA, B)
+ES2_X0_K1 <- rep(NA, B)
+ES3_X0_K1 <- rep(NA, B)
+ES1_X1_K1 <- rep(NA, B)
+ES2_X1_K1 <- rep(NA, B)
+ES3_X1_K1 <- rep(NA, B)
+for (b in 1:B) {
+  eps_N <- rnorm(N, 0, 1) # error term
+  X_N <- runif(N, 0, 1) # X ~ U[0, 1]
+  Y_N <- f(X_N) + eps_N # Non parametric relation between X and Y
+  ES1_X0_K1[b] <- es_n1(x0) 
+  ES2_X0_K1[b] <- es_n2(x0)
+  ES3_X0_K1[b] <- es_n3(x0)
+  ES1_X1_K1[b] <- es_n1(x1)
+  ES2_X1_K1[b] <- es_n2(x1)
+  ES3_X1_K1[b] <- es_n3(x1)
+}
+MSE_ES1_K1_X0 = mean((ES1_X0_K1 - f_prime(x0))^2) + var(ES1_X0_K1)
+MSE_ES2_K1_X0 = mean((ES2_X0_K1 - f_prime(x0))^2) + var(ES2_X0_K1)
+MSE_ES3_K1_X0 = mean((ES3_X0_K1 - f_prime(x0))^2) + var(ES3_X0_K1)
+MSE_ES1_K1_X1 = mean((ES1_X1_K1 - f_prime(x1))^2) + var(ES1_X1_K1)
+MSE_ES2_K1_X1 = mean((ES2_X1_K1 - f_prime(x1))^2) + var(ES2_X1_K1)
+MSE_ES3_K1_X1 = mean((ES3_X1_K1 - f_prime(x1))^2) + var(ES3_X1_K1)
+
+fn1_K <- function(x) {
+  ES_X <- rep(NA, B)
+  for (b in 1:B) {
+    ES_X[b] <- es_n1(x)
+  }
+  return(mean((ES_X - f_prime(x))^2) + var(ES_X))
+}
+
+fn2_K <- function(x) {
+  ES_X <- rep(NA, B)
+  for (b in 1:B) {
+    ES_X[b] <- es_n2(x)
+  }
+  return(mean((ES_X - f_prime(x))^2) + var(ES_X))
+}
+
+fn3_K <- function(x) {
+  ES_X <- rep(NA, B)
+  for (b in 1:B) {
+    ES_X[b] <- es_n3(x)
+  }
+  return(mean((ES_X - f_prime(x))^2) + var(ES_X))
+}
+# MISE_K1_ES1 = sum(d*sapply(x_d, fn1_K))
+# MISE_K1_ES2 = sum(d*sapply(x_d, fn2_K))
+# MISE_K1_ES3 = sum(d*sapply(x_d, fn3_K))
+
+# Kernel 2
+
+K <- function(x) {
+  return(pnorm(x)) 
+}
+K_prime <- function(x) {
+  return(-(x*(1/sqrt(2*pi))*(exp(-(1/2)*x^2))))
+}
+
+alpha <- 1/3
+
+ES1_X0_K2 <- rep(NA, B)
+ES2_X0_K2 <- rep(NA, B)
+ES3_X0_K2 <- rep(NA, B)
+ES1_X1_K2 <- rep(NA, B)
+ES2_X1_K2 <- rep(NA, B)
+ES3_X1_K2 <- rep(NA, B)
+for (b in 1:B) {
+  e <- rnorm(N, 0, 1)
+  X <- runif(N, 0, 1)
+  Y <- f(X) + e
+  ES1_X0_K2[b] <- es_n1(x0)
+  ES2_X0_K2[b] <- es_n2(x0)
+  ES3_X0_K2[b] <- es_n3(x0)
+  ES1_X1_K2[b] <- es_n1(x1)
+  ES2_X1_K2[b] <- es_n2(x1)
+  ES3_X1_K2[b] <- es_n3(x1)
+}
+MSE_ES1_K2_X0 = mean((ES1_X0_K2 - f_prime(x0))^2) + var(ES1_X0_K2)
+MSE_ES2_K2_X0 = mean((ES2_X0_K2 - f_prime(x0))^2) + var(ES2_X0_K2)
+MSE_ES3_K2_X0 = mean((ES3_X0_K2 - f_prime(x0))^2) + var(ES3_X0_K2)
+MSE_ES1_K2_X1 = mean((ES1_X1_K2 - f_prime(x1))^2) + var(ES1_X1_K2)
+MSE_ES2_K2_X1 = mean((ES2_X1_K2 - f_prime(x1))^2) + var(ES2_X1_K2)
+MSE_ES3_K2_X1 = mean((ES3_X1_K2 - f_prime(x1))^2) + var(ES3_X1_K2)
+
+# MISE_K2_ES1 = sum(d*sapply(x_d, fn1_K))
+# MISE_K2_ES2 = sum(d*sapply(x_d, fn2_K))
+# MISE_K2_ES3 = sum(d*sapply(x_d, fn3_K))
+
+# Kernel 3
+
+K <- function(x) {
+  return(ifelse(abs(x) <= 1, (15/16)*(1-x^2)^2, 0))
+}
+K_prime <- function(x) {
+  return(ifelse(abs(x) <= 1, -(15/8)*(x)*(1-x^2), 0))
+}
+
+ES1_X0_K3 <- rep(NA, B)
+ES2_X0_K3 <- rep(NA, B)
+ES3_X0_K3 <- rep(NA, B)
+ES1_X1_K3 <- rep(NA, B)
+ES2_X1_K3 <- rep(NA, B)
+ES3_X1_K3 <- rep(NA, B)
+for (b in 1:B) {
+  e <- rnorm(N, 0, 1)
+  X <- runif(N, 0, 1)
+  Y <- f(X) + e
+  ES1_X0_K3[b] <- es_n1(x0)
+  ES2_X0_K3[b] <- es_n2(x0)
+  ES3_X0_K3[b] <- es_n3(x0)
+  ES1_X1_K3[b] <- es_n1(x1)
+  ES2_X1_K3[b] <- es_n2(x1)
+  ES3_X1_K3[b] <- es_n3(x1)
+}
+MSE_ES1_K3_X0 = mean((ES1_X0_K3 - f_prime(x0))^2) + var(ES1_X0_K3)
+MSE_ES2_K3_X0 = mean((ES2_X0_K3 - f_prime(x0))^2) + var(ES2_X0_K3)
+MSE_ES3_K3_X0 = mean((ES3_X0_K3 - f_prime(x0))^2) + var(ES3_X0_K3)
+MSE_ES1_K3_X1 = mean((ES1_X1_K3 - f_prime(x1))^2) + var(ES1_X1_K3)
+MSE_ES2_K3_X1 = mean((ES2_X1_K3 - f_prime(x1))^2) + var(ES2_X1_K3)
+MSE_ES3_K3_X1 = mean((ES3_X1_K3 - f_prime(x1))^2) + var(ES3_X1_K3)
+
+# MISE_K3_ES1 = sum(d*sapply(x_d, fn1_K))
+# MISE_K3_ES2 = sum(d*sapply(x_d, fn2_K))
+# MISE_K3_ES3 = sum(d*sapply(x_d, fn3_K))
+
+print("MSE for K1")
+c(MSE_ES1_K1_X0, MSE_ES2_K1_X0, MSE_ES3_K1_X0, MSE_ES1_K1_X1, MSE_ES2_K1_X1, MSE_ES3_K1_X1)
+print("MSE for K2")
+c(MSE_ES1_K2_X0, MSE_ES2_K2_X0, MSE_ES3_K2_X0, MSE_ES1_K2_X1, MSE_ES2_K2_X1, MSE_ES3_K2_X1)
+print("MSE for K3")
+c(MSE_ES1_K3_X0, MSE_ES2_K3_X0, MSE_ES3_K3_X0, MSE_ES1_K3_X1, MSE_ES2_K3_X1, MSE_ES3_K3_X1)
+# print("MISE for K1, K2, K3")
+# c(MISE_K1_ES1, MISE_K1_ES2, MISE_K1_ES3, MISE_K2_ES1, MISE_K2_ES2, MISE_K2_ES3, MISE_K3_ES1, MISE_K3_ES2, MISE_K3_ES3)
+
+# X0 -> ES2_K2 et ES3_K2
+# X1 -> ES2_K2 et ES3_K2
 ```
 
 # Annexe
